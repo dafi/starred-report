@@ -44,6 +44,17 @@ describe('fetchAllStargazers', () => {
       { currentPage: 1, totalPages: 2, recordsRead: 1 },
       { currentPage: 2, totalPages: 2, recordsRead: 2 },
     ])
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      expect.any(URL),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: expect.any(String),
+          Authorization: 'Bearer t',
+          'X-GitHub-Api-Version': '2022-11-28',
+        }),
+      }),
+    )
   })
 
   test('surfaces GitHub errors', async () => {
@@ -54,5 +65,27 @@ describe('fetchAllStargazers', () => {
     })
 
     await expect(fetchAllStargazers({ owner: 'o', repo: 'r', token: 't' })).rejects.toThrow('Forbidden')
+  })
+
+  test('omits Authorization header when token is empty', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => null,
+      },
+      json: async () => [],
+    })
+
+    await fetchAllStargazers({ owner: 'o', repo: 'r', token: '' })
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({
+        headers: {
+          Accept: expect.any(String),
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      }),
+    )
   })
 })

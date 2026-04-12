@@ -31,13 +31,16 @@ export async function fetchAllStargazers(settings, onProgress) {
     url.searchParams.set('per_page', String(perPage))
     url.searchParams.set('page', String(page))
 
-    const response = await fetch(url, {
-      headers: {
-        Accept: STARRED_ACCEPT_HEADER,
-        Authorization: `Bearer ${settings.token}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    })
+    const headers = {
+      Accept: STARRED_ACCEPT_HEADER,
+      'X-GitHub-Api-Version': '2022-11-28',
+    }
+
+    if (settings.token) {
+      headers.Authorization = `Bearer ${settings.token}`
+    }
+
+    const response = await fetch(url, { headers })
 
     if (!response.ok) {
       let message = `GitHub request failed with status ${response.status}.`

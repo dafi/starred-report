@@ -1,7 +1,7 @@
 const SETTINGS_KEY = 'starred-report:settings'
 
 export function validateSettings(settings) {
-  return Boolean(settings.owner && settings.repo && settings.token)
+  return Boolean(settings.owner && settings.repo)
 }
 
 export function loadSettings() {

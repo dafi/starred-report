@@ -2,8 +2,9 @@ import { validateSettings } from './settings'
 import { datasetMatchesSettings, hasUsableDataset } from './selectors'
 
 describe('settings selectors', () => {
-  test('validateSettings requires owner repo and token', () => {
+  test('validateSettings requires owner and repo but not token', () => {
     expect(validateSettings({ owner: 'o', repo: 'r', token: 't' })).toBe(true)
+    expect(validateSettings({ owner: 'o', repo: 'r', token: '' })).toBe(true)
     expect(validateSettings({ owner: 'o', repo: '', token: 't' })).toBe(false)
   })
 
