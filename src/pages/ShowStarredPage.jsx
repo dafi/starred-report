@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react'
 import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Table } from '../components/ui'
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Table } from '../components/ui'
 import { filterRecordsByDateRange, sortRecords } from '../lib/stargazers'
 
-export function ShowStarredPage({ records }) {
+export function ShowStarredPage({ settings, loadState, onLoadFirst, onLoadMore }) {
   const [sortColumn, setSortColumn] = useState('date')
   const [sortDirection, setSortDirection] = useState('desc')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+
+  const { records, totalCount, hasNextPage, hasLoaded, isLoading, message, kind } = loadState
 
   const visibleRecords = useMemo(() => {
     const filtered = filterRecordsByDateRange(records, startDate, endDate)
@@ -40,19 +42,42 @@ export function ShowStarredPage({ records }) {
     <Card>
       <CardHeader>
         <CardTitle>Show Starred</CardTitle>
-        <CardDescription>Review stargazers by date and user, with local sorting and filtering.</CardDescription>
+        <CardDescription>
+          Load stargazers for {settings.owner}/{settings.repo} a page at a time, most recent first.
+        </CardDescription>
       </CardHeader>
       <CardContent className="stack">
         <div className="toolbar">
-          <div className="field">
-            <label htmlFor="startDate">Start date</label>
-            <Input id="startDate" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="endDate">End date</label>
-            <Input id="endDate" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-          </div>
+          {!hasLoaded ? (
+            <Button type="button" onClick={onLoadFirst} disabled={isLoading}>
+              {isLoading ? 'Loading...' : 'Load stargazers'}
+            </Button>
+          ) : (
+            <>
+              <Button type="button" onClick={onLoadMore} disabled={isLoading || !hasNextPage}>
+                {isLoading ? 'Loading...' : hasNextPage ? 'Load more' : 'All loaded'}
+              </Button>
+              <p className="summary-value">
+                {records.length} of {totalCount} loaded
+              </p>
+            </>
+          )}
         </div>
+
+        {message ? <p className={`status-message ${kind}`}>{message}</p> : null}
+
+        {hasLoaded ? (
+          <div className="toolbar">
+            <div className="field">
+              <label htmlFor="startDate">Start date</label>
+              <Input id="startDate" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="endDate">End date</label>
+              <Input id="endDate" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+            </div>
+          </div>
+        ) : null}
 
         {visibleRecords.length ? (
           <div className="table-wrap">
@@ -99,8 +124,8 @@ export function ShowStarredPage({ records }) {
           </div>
         ) : (
           <div className="empty-state">
-            <h3>No stargazers in this date range.</h3>
-            <p>Adjust the start or end date to widen the result set.</p>
+            <h3>{hasLoaded ? 'No stargazers in this date range.' : 'No stargazers loaded yet.'}</h3>
+            <p>{hasLoaded ? 'Adjust the start or end date to widen the result set.' : 'Use “Load stargazers” to fetch the first page.'}</p>
           </div>
         )}
       </CardContent>
