@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
-import { ReadStarredPage } from './pages/ReadStarredPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ShowStarredPage } from './pages/ShowStarredPage'
-import { ChartsPage } from './pages/ChartsPage'
-import { fetchAllStargazers } from './lib/github'
+import { fetchStargazersPage } from './lib/github'
 import { loadSettings, saveSettings, validateSettings } from './lib/settings'
-import { loadDataset, saveDataset } from './lib/storage'
-import { hasUsableDataset } from './lib/selectors'
 
-const initialReadStatus = {
+const initialLoadState = {
+  records: [],
+  totalCount: 0,
+  endCursor: null,
+  hasNextPage: false,
+  hasLoaded: false,
   isLoading: false,
-  currentPage: 0,
-  totalPages: 0,
-  recordsRead: 0,
   message: '',
   kind: 'info',
 }
@@ -21,36 +19,16 @@ const initialReadStatus = {
 export default function App() {
   const [activePage, setActivePage] = useState('settings')
   const [settings, setSettings] = useState(() => loadSettings())
-  const [datasetMeta, setDatasetMeta] = useState(null)
-  const [records, setRecords] = useState([])
-  const [readStatus, setReadStatus] = useState(initialReadStatus)
-
-  useEffect(() => {
-    loadDataset()
-      .then((dataset) => {
-        setDatasetMeta(dataset.meta)
-        setRecords(dataset.records)
-      })
-      .catch(() => {
-        setReadStatus((current) => ({
-          ...current,
-          message: 'Could not load local browser data.',
-          kind: 'error',
-        }))
-      })
-  }, [])
+  const [loadState, setLoadState] = useState(initialLoadState)
 
   const settingsReady = validateSettings(settings)
-  const datasetReady = hasUsableDataset(datasetMeta, settings, records)
 
   const enabledMap = useMemo(
     () => ({
-      read: settingsReady,
-      show: settingsReady && datasetReady,
-      charts: settingsReady && datasetReady,
+      show: settingsReady,
       settings: true,
     }),
-    [datasetReady, settingsReady],
+    [settingsReady],
   )
 
   useEffect(() => {
@@ -62,61 +40,49 @@ export default function App() {
   function handleSaveSettings(nextSettings) {
     saveSettings(nextSettings)
     setSettings(nextSettings)
+    // A new target repository invalidates whatever we loaded in memory.
+    setLoadState(initialLoadState)
   }
 
-  async function handleReadStarred() {
-    if (readStatus.isLoading) {
+  async function loadPage(cursor) {
+    if (loadState.isLoading) {
       return
     }
 
-    setReadStatus({
-      isLoading: true,
-      currentPage: 0,
-      totalPages: 0,
-      recordsRead: 0,
-      message: '',
-      kind: 'info',
-    })
+    setLoadState((current) => ({ ...current, isLoading: true, message: '', kind: 'info' }))
 
     try {
-      const nextRecords = await fetchAllStargazers(settings, (progress) => {
-        setReadStatus((current) => ({
-          ...current,
-          currentPage: progress.currentPage,
-          totalPages: progress.totalPages,
-          recordsRead: progress.recordsRead,
-        }))
-      })
+      const page = await fetchStargazersPage(settings, cursor)
 
-      const meta = {
-        owner: settings.owner,
-        repo: settings.repo,
-        fetchedAt: new Date().toISOString(),
-        count: nextRecords.length,
-      }
-
-      await saveDataset(meta, nextRecords)
-      setDatasetMeta(meta)
-      setRecords(nextRecords)
-      setActivePage('show')
-      setReadStatus({
-        isLoading: false,
-        currentPage: 0,
-        totalPages: 0,
-        recordsRead: nextRecords.length,
-        message: `Stored ${nextRecords.length} stargazers for ${settings.owner}/${settings.repo}.`,
-        kind: 'success',
+      setLoadState((current) => {
+        const records = cursor ? [...current.records, ...page.records] : page.records
+        return {
+          records,
+          totalCount: page.totalCount,
+          endCursor: page.endCursor,
+          hasNextPage: page.hasNextPage,
+          hasLoaded: true,
+          isLoading: false,
+          message: `Loaded ${records.length} of ${page.totalCount} stargazers.`,
+          kind: 'success',
+        }
       })
     } catch (error) {
-      setReadStatus({
+      setLoadState((current) => ({
+        ...current,
         isLoading: false,
-        currentPage: 0,
-        totalPages: 0,
-        recordsRead: 0,
         message: error.message || 'Could not read stargazers from GitHub.',
         kind: 'error',
-      })
+      }))
     }
+  }
+
+  function handleLoadFirst() {
+    loadPage(null)
+  }
+
+  function handleLoadMore() {
+    loadPage(loadState.endCursor)
   }
 
   return (
@@ -125,9 +91,14 @@ export default function App() {
 
       <main className="content">
         {activePage === 'settings' ? <SettingsPage settings={settings} onSave={handleSaveSettings} /> : null}
-        {activePage === 'read' ? <ReadStarredPage settings={settings} status={readStatus} onRead={handleReadStarred} /> : null}
-        {activePage === 'show' ? <ShowStarredPage records={records} /> : null}
-        {activePage === 'charts' ? <ChartsPage records={records} /> : null}
+        {activePage === 'show' ? (
+          <ShowStarredPage
+            settings={settings}
+            loadState={loadState}
+            onLoadFirst={handleLoadFirst}
+            onLoadMore={handleLoadMore}
+          />
+        ) : null}
       </main>
     </div>
   )

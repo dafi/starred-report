@@ -1,91 +1,94 @@
-import { fetchAllStargazers } from './github'
+import { fetchStargazersPage } from './github'
 
-describe('fetchAllStargazers', () => {
-  test('aggregates all pages and reports progress', async () => {
-    const progress = []
+function mockGraphqlResponse(data) {
+  return {
+    ok: true,
+    json: async () => ({ data }),
+  }
+}
 
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        headers: {
-          get: () => '<https://api.github.com/repositories/1/stargazers?per_page=100&page=2>; rel="last"',
+const pageData = {
+  repository: {
+    stargazers: {
+      totalCount: 2,
+      pageInfo: { hasNextPage: true, endCursor: 'CURSOR_1' },
+      edges: [
+        {
+          starredAt: '2024-01-02T10:00:00Z',
+          node: { login: 'bob', url: 'https://github.com/bob', avatarUrl: 'https://img/b' },
         },
-        json: async () => [
-          {
-            starred_at: '2024-01-01T10:00:00Z',
-            user: { login: 'alice', html_url: 'https://github.com/alice', avatar_url: 'https://img/a' },
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        headers: {
-          get: () => null,
+      ],
+    },
+  },
+}
+
+describe('fetchStargazersPage', () => {
+  test('requests a GraphQL page and normalizes the edges', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockGraphqlResponse(pageData))
+
+    const result = await fetchStargazersPage({ owner: 'o', repo: 'r', token: 't' }, null)
+
+    expect(result).toEqual({
+      records: [
+        {
+          login: 'bob',
+          htmlUrl: 'https://github.com/bob',
+          avatarUrl: 'https://img/b',
+          starredAt: '2024-01-02T10:00:00Z',
         },
-        json: async () => [
-          {
-            starred_at: '2024-01-02T10:00:00Z',
-            user: { login: 'bob', html_url: 'https://github.com/bob', avatar_url: 'https://img/b' },
-          },
-        ],
-      })
-
-    const result = await fetchAllStargazers({ owner: 'o', repo: 'r', token: 't' }, (item) => progress.push(item))
-
-    expect(result).toHaveLength(2)
-    expect(result[0]).toEqual({
-      login: 'alice',
-      htmlUrl: 'https://github.com/alice',
-      avatarUrl: 'https://img/a',
-      starredAt: '2024-01-01T10:00:00Z',
-    })
-    expect(progress).toEqual([
-      { currentPage: 1, totalPages: 2, recordsRead: 1 },
-      { currentPage: 2, totalPages: 2, recordsRead: 2 },
-    ])
-    expect(global.fetch).toHaveBeenNthCalledWith(
-      1,
-      expect.any(URL),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Accept: expect.any(String),
-          Authorization: 'Bearer t',
-          'X-GitHub-Api-Version': '2022-11-28',
-        }),
-      }),
-    )
-  })
-
-  test('surfaces GitHub errors', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 403,
-      json: async () => ({ message: 'Forbidden' }),
+      ],
+      totalCount: 2,
+      hasNextPage: true,
+      endCursor: 'CURSOR_1',
     })
 
-    await expect(fetchAllStargazers({ owner: 'o', repo: 'r', token: 't' })).rejects.toThrow('Forbidden')
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('https://api.github.com/graphql')
+    expect(options.method).toBe('POST')
+    expect(options.headers.Authorization).toBe('Bearer t')
+    expect(options.headers['Content-Type']).toBe('application/json')
+
+    const body = JSON.parse(options.body)
+    expect(body.query).toContain('stargazers')
+    expect(body.query).toContain('STARRED_AT')
+    expect(body.query).toContain('DESC')
+    expect(body.variables).toEqual({ owner: 'o', repo: 'r', cursor: null })
   })
 
-  test('omits Authorization header when token is empty', async () => {
+  test('passes the cursor for subsequent pages', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockGraphqlResponse(pageData))
+
+    await fetchStargazersPage({ owner: 'o', repo: 'r', token: 't' }, 'CURSOR_1')
+
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body)
+    expect(body.variables.cursor).toBe('CURSOR_1')
+  })
+
+  test('throws a clear error when the token is missing', async () => {
+    global.fetch = vi.fn()
+
+    await expect(fetchStargazersPage({ owner: 'o', repo: 'r', token: '' }, null)).rejects.toThrow(/token/i)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  test('surfaces GraphQL errors', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      headers: {
-        get: () => null,
-      },
-      json: async () => [],
+      json: async () => ({ errors: [{ message: 'Could not resolve to a Repository' }] }),
     })
 
-    await fetchAllStargazers({ owner: 'o', repo: 'r', token: '' })
-
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.any(URL),
-      expect.objectContaining({
-        headers: {
-          Accept: expect.any(String),
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      }),
+    await expect(fetchStargazersPage({ owner: 'o', repo: 'r', token: 't' }, null)).rejects.toThrow(
+      'Could not resolve to a Repository',
     )
+  })
+
+  test('surfaces HTTP errors', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: 'Bad credentials' }),
+    })
+
+    await expect(fetchStargazersPage({ owner: 'o', repo: 'r', token: 't' }, null)).rejects.toThrow('Bad credentials')
   })
 })

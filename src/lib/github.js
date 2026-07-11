@@ -1,83 +1,82 @@
-import { STARRED_ACCEPT_HEADER } from './constants'
+import { PAGE_SIZE } from './constants'
 
-function parseLastPage(linkHeader) {
-  if (!linkHeader) {
-    return null
-  }
+const GRAPHQL_ENDPOINT = 'https://api.github.com/graphql'
 
-  const match = linkHeader.match(/[?&]page=(\d+)>; rel="last"/)
-  return match ? Number.parseInt(match[1], 10) : null
-}
-
-function normalizeRecord(item) {
-  return {
-    login: item.user.login,
-    htmlUrl: item.user.html_url,
-    avatarUrl: item.user.avatar_url ?? '',
-    starredAt: item.starred_at,
-  }
-}
-
-export async function fetchAllStargazers(settings, onProgress) {
-  const perPage = 100
-  let page = 1
-  let totalPages = null
-  const records = []
-
-  while (true) {
-    const url = new URL(
-      `https://api.github.com/repos/${encodeURIComponent(settings.owner)}/${encodeURIComponent(settings.repo)}/stargazers`,
-    )
-    url.searchParams.set('per_page', String(perPage))
-    url.searchParams.set('page', String(page))
-
-    const headers = {
-      Accept: STARRED_ACCEPT_HEADER,
-      'X-GitHub-Api-Version': '2022-11-28',
-    }
-
-    if (settings.token) {
-      headers.Authorization = `Bearer ${settings.token}`
-    }
-
-    const response = await fetch(url, { headers })
-
-    if (!response.ok) {
-      let message = `GitHub request failed with status ${response.status}.`
-      try {
-        const errorData = await response.json()
-        if (errorData.message) {
-          message = errorData.message
-        }
-      } catch {
-        // Ignore JSON parsing errors on failure responses.
+const STARGAZERS_QUERY = `query($owner: String!, $repo: String!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    stargazers(first: ${PAGE_SIZE}, after: $cursor, orderBy: { field: STARRED_AT, direction: DESC }) {
+      totalCount
+      pageInfo {
+        hasNextPage
+        endCursor
       }
-      throw new Error(message)
+      edges {
+        starredAt
+        node {
+          login
+          url
+          avatarUrl
+        }
+      }
     }
+  }
+}`
 
-    if (totalPages === null) {
-      totalPages = parseLastPage(response.headers.get('link')) ?? 1
-    }
+function normalizeEdge(edge) {
+  return {
+    login: edge.node.login,
+    htmlUrl: edge.node.url,
+    avatarUrl: edge.node.avatarUrl ?? '',
+    starredAt: edge.starredAt,
+  }
+}
 
-    const pageItems = await response.json()
-    records.push(...pageItems.map(normalizeRecord))
-
-    onProgress?.({
-      currentPage: page,
-      totalPages,
-      recordsRead: records.length,
-    })
-
-    if (page >= totalPages) {
-      break
-    }
-
-    if (totalPages === 1 && pageItems.length < perPage) {
-      break
-    }
-
-    page += 1
+export async function fetchStargazersPage(settings, cursor) {
+  if (!settings.token) {
+    throw new Error('A GitHub token is required to read stargazers.')
   }
 
-  return records
+  const response = await fetch(GRAPHQL_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${settings.token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      query: STARGAZERS_QUERY,
+      variables: {
+        owner: settings.owner,
+        repo: settings.repo,
+        cursor: cursor ?? null,
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    let message = `GitHub request failed with status ${response.status}.`
+    try {
+      const errorData = await response.json()
+      if (errorData.message) {
+        message = errorData.message
+      }
+    } catch {
+      // Ignore JSON parsing errors on failure responses.
+    }
+    throw new Error(message)
+  }
+
+  const payload = await response.json()
+
+  if (payload.errors?.length) {
+    throw new Error(payload.errors[0].message)
+  }
+
+  const stargazers = payload.data.repository.stargazers
+
+  return {
+    records: stargazers.edges.map(normalizeEdge),
+    totalCount: stargazers.totalCount,
+    hasNextPage: stargazers.pageInfo.hasNextPage,
+    endCursor: stargazers.pageInfo.endCursor,
+  }
 }

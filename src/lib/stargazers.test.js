@@ -1,10 +1,4 @@
-import {
-  buildCumulativeSeries,
-  buildDailySeries,
-  buildWeekdaySeries,
-  filterRecordsByDateRange,
-  sortRecords,
-} from './stargazers'
+import { filterRecordsByDateRange, sortRecords } from './stargazers'
 
 const records = [
   { login: 'c', starredAt: '2024-01-03T09:00:00Z' },
@@ -26,22 +20,5 @@ describe('stargazer selectors', () => {
   test('filters by inclusive date range', () => {
     const result = filterRecordsByDateRange(records, '2024-01-01', '2024-01-01')
     expect(result).toHaveLength(2)
-  })
-
-  test('builds daily and cumulative series', () => {
-    expect(buildDailySeries(records)).toEqual([
-      { date: '2024-01-01', count: 2 },
-      { date: '2024-01-03', count: 1 },
-    ])
-    expect(buildCumulativeSeries(records)).toEqual([
-      { date: '2024-01-01', count: 2 },
-      { date: '2024-01-03', count: 3 },
-    ])
-  })
-
-  test('builds weekday distribution', () => {
-    const series = buildWeekdaySeries(records)
-    expect(series.find((item) => item.label === 'Mon')?.count).toBe(2)
-    expect(series.find((item) => item.label === 'Wed')?.count).toBe(1)
   })
 })

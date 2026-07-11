@@ -24,7 +24,7 @@ export function SettingsPage({ settings, onSave }) {
     <Card>
       <CardHeader>
         <CardTitle>Settings</CardTitle>
-        <CardDescription>Configure the GitHub repository used for stargazer requests. Token is optional.</CardDescription>
+        <CardDescription>Configure the GitHub repository used for stargazer requests. A token is required (the GraphQL API always needs authentication).</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="form-grid" onSubmit={handleSubmit}>
@@ -46,7 +46,7 @@ export function SettingsPage({ settings, onSave }) {
               type="password"
               value={formData.token}
               onChange={updateField}
-              placeholder="github_pat_... (optional)"
+              placeholder="github_pat_... (required)"
             />
           </div>
 

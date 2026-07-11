@@ -20,12 +20,11 @@ If it breaks, gets rate-limited, or behaves weirdly on edge cases, that is not a
 
 ## What It Does
 
-- reads all stargazers for a GitHub repository
-- stores the fetched dataset locally in your browser
+- reads stargazers for a GitHub repository, one page at a time, most recent first
+- keeps the loaded pages in memory for the current session
 - shows the results in a sortable/filterable table
-- shows a few simple charts from the saved local dataset
 - works with public repositories
-- optionally accepts a GitHub token to reduce rate-limit pain
+- requires a GitHub token (the GraphQL API always needs authentication)
 
 ## Why It Exists
 
@@ -35,18 +34,17 @@ That is the entire architecture document.
 
 ## Screens / Flow
 
-1. Set `owner` and `repo`
-2. Optionally add a GitHub token
-3. Fetch all stargazers
-4. Browse them locally
-5. Look at a couple of charts
+1. Set `owner`, `repo`, and a GitHub token
+2. Load the first page of stargazers
+3. Keep hitting "Load more" for older pages
+4. Browse them in the table
 
 ## Tech
 
 - React
 - Vite
-- local browser storage
-- GitHub REST API
+- in-memory session state
+- GitHub GraphQL API
 
 No backend. No database. No operational burden. No dignity.
 
@@ -65,15 +63,18 @@ Then open the local Vite URL in your browser.
 pnpm test
 ```
 
-## Token Or No Token?
+## Token
 
-For public repositories, the app can work without a token.
+A token is required. GitHub's GraphQL API always needs authentication, and the
+old unauthenticated REST stargazers endpoint no longer works for this.
 
-The token is optional and mainly helps with GitHub API rate limits. If you are doing one small fetch on a public repo, you may not need it. If you keep hammering the API like consequences are for other people, it can help.
+A classic token with **no scopes** is enough — it only reads public stargazer
+data. Generate one at github.com/settings/tokens and paste it into Settings.
 
 ## Data Storage
 
-Fetched data is stored in local browser storage on the machine and browser profile you used.
+Loaded pages live only in memory for the current session. Reload the page and
+you start over.
 
 That is convenient, which is another way of saying "good enough for the kind of questionable life choices that produced this repository."
 

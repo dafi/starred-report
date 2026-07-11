@@ -32,39 +32,3 @@ export function filterRecordsByDateRange(records, startDate, endDate) {
     return true
   })
 }
-
-export function buildDailySeries(records) {
-  const map = new Map()
-
-  records.forEach((record) => {
-    const day = record.starredAt.slice(0, 10)
-    map.set(day, (map.get(day) ?? 0) + 1)
-  })
-
-  return [...map.entries()]
-    .sort((left, right) => left[0].localeCompare(right[0]))
-    .map(([date, count]) => ({ date, count }))
-}
-
-export function buildCumulativeSeries(records) {
-  let total = 0
-  return buildDailySeries(records).map((item) => {
-    total += item.count
-    return {
-      date: item.date,
-      count: total,
-    }
-  })
-}
-
-export function buildWeekdaySeries(records) {
-  const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const counts = labels.map((label) => ({ label, count: 0 }))
-
-  records.forEach((record) => {
-    const dayIndex = new Date(record.starredAt).getUTCDay()
-    counts[dayIndex].count += 1
-  })
-
-  return counts
-}
