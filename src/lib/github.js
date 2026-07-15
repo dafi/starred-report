@@ -16,6 +16,7 @@ const STARGAZERS_QUERY = `query($owner: String!, $repo: String!, $cursor: String
           login
           url
           avatarUrl
+          createdAt
         }
       }
     }
@@ -28,6 +29,7 @@ function normalizeEdge(edge) {
     htmlUrl: edge.node.url,
     avatarUrl: edge.node.avatarUrl ?? '',
     starredAt: edge.starredAt,
+    createdAt: edge.node.createdAt,
   }
 }
 

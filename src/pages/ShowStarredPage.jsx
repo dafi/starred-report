@@ -106,6 +106,17 @@ export function ShowStarredPage({ settings, loadState, onLoadFirst, onLoadMore }
                       {renderSortIcon('user')}
                     </button>
                   </th>
+                  <th className={sortColumn === 'registered' ? 'active-sort-column' : ''}>
+                    <button
+                      type="button"
+                      className="table-sort-trigger"
+                      onClick={() => toggleSort('registered')}
+                      aria-label={`Sort by registration date ${sortColumn === 'registered' && sortDirection === 'asc' ? 'descending' : 'ascending'}`}
+                    >
+                      <span>Registered</span>
+                      {renderSortIcon('registered')}
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -116,6 +127,11 @@ export function ShowStarredPage({ settings, loadState, onLoadFirst, onLoadMore }
                       <a href={record.htmlUrl} target="_blank" rel="noreferrer">
                         {record.login}
                       </a>
+                    </td>
+                    <td>
+                      {record.createdAt
+                        ? new Date(record.createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+                        : '—'}
                     </td>
                   </tr>
                 ))}

@@ -8,6 +8,10 @@ export function sortRecords(records, column, direction) {
       return left.login.localeCompare(right.login, 'en', { sensitivity: 'base' })
     }
 
+    if (column === 'registered') {
+      return toTime(left.createdAt) - toTime(right.createdAt)
+    }
+
     return toTime(left.starredAt) - toTime(right.starredAt)
   })
 

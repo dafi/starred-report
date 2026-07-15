@@ -15,7 +15,12 @@ const pageData = {
       edges: [
         {
           starredAt: '2024-01-02T10:00:00Z',
-          node: { login: 'bob', url: 'https://github.com/bob', avatarUrl: 'https://img/b' },
+          node: {
+            login: 'bob',
+            url: 'https://github.com/bob',
+            avatarUrl: 'https://img/b',
+            createdAt: '2020-05-06T08:00:00Z',
+          },
         },
       ],
     },
@@ -35,6 +40,7 @@ describe('fetchStargazersPage', () => {
           htmlUrl: 'https://github.com/bob',
           avatarUrl: 'https://img/b',
           starredAt: '2024-01-02T10:00:00Z',
+          createdAt: '2020-05-06T08:00:00Z',
         },
       ],
       totalCount: 2,
